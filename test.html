@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <title>Escape Room 3D</title>
+  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&display=swap');
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body { overflow: hidden; background: #000; }
+
+    /* HUD Overlay */
+    #hud {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      pointer-events: none;
+      z-index: 999;
+      font-family: 'Share Tech Mono', monospace;
+    }
+
+    /* Corner scanlines effect */
+    #hud::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,255,100,0.015) 2px,
+        rgba(0,255,100,0.015) 4px
+      );
+      pointer-events: none;
+    }
+
+    /* Top bar */
+    #topbar {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      padding: 14px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.85), transparent);
+      border-bottom: 1px solid rgba(0,255,120,0.18);
+    }
+
+    #game-title {
+      font-family: 'VT323', monospace;
+      font-size: 26px;
+      color: #00ff88;
+      letter-spacing: 4px;
+      text-shadow: 0 0 12px #00ff88, 0 0 30px #00aa55;
+    }
+
+    #timer-box {
+      font-size: 20px;
+      color: #ffcc00;
+      text-shadow: 0 0 8px #ffaa00;
+      letter-spacing: 2px;
+    }
+
+    /* Inventory panel */
+    #inventory {
+      position: absolute;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      background: rgba(0,0,0,0.7);
+      border: 1px solid rgba(0,255,120,0.3);
+      padding: 10px 18px;
+      border-radius: 4px;
+    }
+
+    #inventory-label {
+      font-size: 13px;
+      color: rgba(0,255,120,0.6);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    .inv-slot {
+      width: 44px; height: 44px;
+      border: 1px solid rgba(0,255,120,0.25);
+      border-radius: 4px;
+      background: rgba(0,20,10,0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      transition: all 0.3s;
+    }
+
+    .inv-slot.filled {
+      border-color: #ffcc00;
+      background: rgba(40,30,0,0.8);
+      box-shadow: 0 0 10px rgba(255,200,0,0.3);
+      animation: slotGlow 1.5s ease-in-out infinite alternate;
+    }
+
+    @keyframes slotGlow {
+      from { box-shadow: 0 0 6px rgba(255,200,0,0.2); }
+      to   { box-shadow: 0 0 18px rgba(255,200,0,0.5); }
+    }
+
+    /* Crosshair */
+    #crosshair {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 20px; height: 20px;
+      pointer-events: none;
+    }
+    #crosshair::before, #crosshair::after {
+      content: '';
+      position: absolute;
+      background: rgba(255,255,255,0.7);
+      border-radius: 2px;
+    }
+    #crosshair::before {
+      width: 2px; height: 100%;
+      left: 50%; top: 0;
+      transform: translateX(-50%);
+    }
+    #crosshair::after {
+      width: 100%; height: 2px;
+      top: 50%; left: 0;
+      transform: translateY(-50%);
+    }
+
+    /* Hint bar */
+    #hint {
+      position: absolute;
+      top: 70px; left: 50%;
+      transform: translateX(-50%);
+      font-size: 13px;
+      color: rgba(0,255,120,0.55);
+      letter-spacing: 2px;
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    /* Toast notification */
+    #toast {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.8);
+      background: rgba(0,0,0,0.92);
+      border: 1px solid rgba(0,255,120,0.4);
+      padding: 20px 36px;
+      text-align: center;
+      min-width: 280px;
+      opacity: 0;
+      transition: all 0.3s cubic-bezier(0.34,1.56,0.64,1);
+      pointer-events: none;
+    }
+
+    #toast.show {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+
+    #toast-icon { font-size: 36px; display: block; margin-bottom: 8px; }
+    #toast-msg  { font-size: 17px; color: #fff; line-height: 1.5; }
+
+    #toast.success { border-color: #00ff88; }
+    #toast.success #toast-icon { filter: drop-shadow(0 0 8px #00ff88); }
+    #toast.warning { border-color: #ff6644; }
+    #toast.warning #toast-icon { filter: drop-shadow(0 0 8px #ff6644); }
+    #toast.info    { border-color: #ffcc00; }
+
+    /* Win screen */
+    #win-screen {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      pointer-events: none;
+      transition: background 1s;
+    }
+    #win-screen.active {
+      pointer-events: all;
+      background: rgba(0,0,0,0.88);
+    }
+    #win-content {
+      text-align: center;
+      transform: scale(0);
+      transition: transform 0.6s cubic-bezier(0.34,1.56,0.64,1) 0.5s;
+    }
+    #win-screen.active #win-content { transform: scale(1); }
+
+    #win-emoji { font-size: 80px; display: block; margin-bottom: 16px;
+      animation: bounce 0.8s ease-in-out infinite alternate; }
+    @keyframes bounce {
+      from { transform: translateY(0); }
+      to   { transform: translateY(-12px); }
+    }
+
+    #win-title {
+      font-family: 'VT323', monospace;
+      font-size: 64px;
+      color: #00ff88;
+      letter-spacing: 6px;
+      text-shadow: 0 0 20px #00ff88, 0 0 60px #00aa55;
+      margin-bottom: 8px;
+    }
+    #win-sub {
+      font-size: 16px;
+      color: rgba(255,255,255,0.6);
+      letter-spacing: 3px;
+      margin-bottom: 28px;
+    }
+    #win-time {
+      font-size: 22px;
+      color: #ffcc00;
+      letter-spacing: 2px;
+      margin-bottom: 32px;
+      text-shadow: 0 0 10px #ffaa00;
+    }
+    #btn-restart {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 15px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      background: transparent;
+      border: 1px solid #00ff88;
+      color: #00ff88;
+      padding: 12px 32px;
+      cursor: pointer;
+      transition: all 0.2s;
+      pointer-events: all;
+    }
+    #btn-restart:hover {
+      background: rgba(0,255,136,0.1);
+      box-shadow: 0 0 20px rgba(0,255,136,0.3);
+    }
+
+    /* Puzzle panel */
+    #puzzle-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.82);
+      z-index: 5000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+    }
+    #puzzle-overlay.active {
+      opacity: 1;
+      pointer-events: all;
+    }
+    #puzzle-box {
+      background: rgba(5,10,8,0.97);
+      border: 1px solid rgba(0,255,120,0.35);
+      padding: 36px 44px;
+      min-width: 360px;
+      text-align: center;
+      box-shadow: 0 0 60px rgba(0,255,120,0.1);
+    }
+    #puzzle-title {
+      font-family: 'VT323', monospace;
+      font-size: 28px;
+      color: #00ff88;
+      letter-spacing: 4px;
+      margin-bottom: 8px;
+    }
+    #puzzle-desc {
+      font-size: 13px;
+      color: rgba(255,255,255,0.5);
+      letter-spacing: 1px;
+      margin-bottom: 24px;
+      line-height: 1.7;
+    }
+    #puzzle-clue {
+      font-size: 36px;
+      color: #ffcc00;
+      letter-spacing: 16px;
+      margin-bottom: 20px;
+      text-shadow: 0 0 12px #ffaa00;
+    }
+    #puzzle-input {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 28px;
+      background: rgba(0,20,10,0.8);
+      border: 1px solid rgba(0,255,120,0.3);
+      color: #00ff88;
+      text-align: center;
+      width: 160px;
+      padding: 10px 0;
+      letter-spacing: 8px;
+      outline: none;
+    }
+    #puzzle-input:focus { border-color: #00ff88; box-shadow: 0 0 12px rgba(0,255,120,0.2); }
+    #puzzle-error {
+      font-size: 13px;
+      color: #ff6644;
+      margin-top: 10px;
+      height: 18px;
+      letter-spacing: 1px;
+    }
+    #puzzle-buttons {
+      display: flex;
+      gap: 12px;
+      margin-top: 20px;
+      justify-content: center;
+    }
+    .puzzle-btn {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 13px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      padding: 10px 24px;
+      border: 1px solid;
+      cursor: pointer;
+      background: transparent;
+      transition: all 0.2s;
+    }
+    #btn-submit  { border-color: #00ff88; color: #00ff88; }
+    #btn-submit:hover  { background: rgba(0,255,120,0.1); }
+    #btn-cancel  { border-color: rgba(255,255,255,0.2); color: rgba(255,255,255,0.4); }
+    #btn-cancel:hover  { border-color: rgba(255,255,255,0.4); color: rgba(255,255,255,0.6); }
+  </style>
+</head>
+
+<body>
+
+<!-- ═══ HUD ═══ -->
+<div id="hud">
+  <div id="topbar">
+    <div id="game-title">⬡ ESCAPE ROOM</div>
+    <div id="timer-box">⏱ <span id="timer">00:00</span></div>
+  </div>
+  <div id="hint">[ klik objek untuk berinteraksi ]</div>
+  <div id="crosshair"></div>
+  <div id="inventory">
+    <span id="inventory-label">Inventori</span>
+    <div class="inv-slot" id="slot-key" title="Kunci"></div>
+    <div class="inv-slot" id="slot-code" title="Kode"></div>
+  </div>
+  <div id="toast">
+    <span id="toast-icon">🔑</span>
+    <span id="toast-msg">Pesan</span>
+  </div>
+</div>
+
+<!-- ═══ PUZZLE PANEL ═══ -->
+<div id="puzzle-overlay">
+  <div id="puzzle-box">
+    <div id="puzzle-title">BUKU CATATAN</div>
+    <div id="puzzle-desc">Ada tulisan aneh di buku ini...<br>Angka-angka tersusun seperti teka-teki.</div>
+    <div id="puzzle-clue">2  4  8  ?</div>
+    <input id="puzzle-input" type="text" maxlength="2" placeholder="__">
+    <div id="puzzle-error"></div>
+    <div id="puzzle-buttons">
+      <button class="puzzle-btn" id="btn-submit" onclick="checkPuzzle()">KONFIRMASI</button>
+      <button class="puzzle-btn" id="btn-cancel" onclick="closePuzzle()">TUTUP</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ WIN SCREEN ═══ -->
+<div id="win-screen">
+  <div id="win-content">
+    <span id="win-emoji">🎉</span>
+    <div id="win-title">BERHASIL!</div>
+    <div id="win-sub">KAMU BERHASIL MELARIKAN DIRI</div>
+    <div id="win-time">Waktu: <span id="final-time">--:--</span></div>
+    <button id="btn-restart" onclick="restartGame()">↺ MAIN LAGI</button>
+  </div>
+</div>
+
+<!-- ═══ A-FRAME SCENE ═══ -->
+<a-scene fog="type: linear; color: #0a0a0a; near: 8; far: 18">
+
+  <!-- Aset -->
+  <a-assets>
+    <a-mixin id="wall-mat" color="#1a1a1f" roughness="0.9" metalness="0.1"></a-mixin>
+  </a-assets>
+
+  <!-- Kamera dengan look controls -->
+  <a-entity id="rig" position="0 0 3">
+    <a-camera look-controls wasd-controls="acceleration:20" fov="75"
+              position="0 1.6 0">
+      <a-cursor color="white" opacity="0.7" fuse="false"></a-cursor>
+    </a-camera>
+  </a-entity>
+
+  <!-- Langit gelap -->
+  <a-sky color="#080810"></a-sky>
+
+  <!-- Ambient redup + lampu utama -->
+  <a-light type="ambient" color="#101018" intensity="0.8"></a-light>
+  <a-light type="point" position="0 3.5 -2" color="#4488ff" intensity="1.2" distance="12" decay="2"></a-light>
+
+  <!-- Lampu merah di dekat pintu -->
+  <a-light type="point" position="2 2.5 -4.5" color="#ff2222" intensity="0.8" distance="6" decay="2"></a-light>
+
+  <!-- Lampu kuning di dekat kunci -->
+  <a-light type="point" position="-2 2 -4.5" color="#ffcc44" intensity="0.5" distance="5" decay="2"></a-light>
+
+  <!-- ── LANTAI ── -->
+  <a-plane position="0 0 -3" rotation="-90 0 0"
+           width="12" height="12"
+           color="#141418"
+           roughness="0.6" metalness="0.3"
+           repeat="6 6">
+  </a-plane>
+
+  <!-- Garis grid lantai (dekoratif) -->
+  <a-entity position="0 0.01 -3">
+    <a-plane rotation="-90 0 0" width="12" height="12"
+             color="#00ff88" opacity="0.04"
+             wireframe="true">
+    </a-plane>
+  </a-entity>
+
+  <!-- ── DINDING BELAKANG ── -->
+  <a-box position="0 2.5 -7" width="12" height="5" depth="0.3"
+         color="#161620" roughness="0.9">
+  </a-box>
+
+  <!-- Dinding kiri -->
+  <a-box position="-6 2.5 -3" width="0.3" height="5" depth="12"
+         color="#131318" roughness="0.9">
+  </a-box>
+
+  <!-- Dinding kanan -->
+  <a-box position="6 2.5 -3" width="0.3" height="5" depth="12"
+         color="#131318" roughness="0.9">
+  </a-box>
+
+  <!-- Langit-langit -->
+  <a-box position="0 5 -3" width="12" height="0.2" depth="12"
+         color="#0f0f14">
+  </a-box>
+
+  <!-- Lampu langit-langit (fixture) -->
+  <a-box position="0 4.85 -3" width="0.6" height="0.1" depth="0.6"
+         color="#fff" emissive="#fff" emissive-intensity="0.8">
+  </a-box>
+  <a-cylinder position="0 4.6 -3" radius="0.04" height="0.5"
+              color="#555" emissive="#888" emissive-intensity="0.4">
+  </a-cylinder>
+
+  <!-- ── OBJEK 1: BUKU CATATAN (Puzzle) ── -->
+  <!-- Meja -->
+  <a-box position="-2.5 0.5 -3.5" width="1.4" height="0.08" depth="0.8"
+         color="#2a1f0f" roughness="0.8">
+  </a-box>
+  <a-box position="-2.5 0.25 -3.5" width="0.1" height="0.5" depth="0.1"
+         color="#1f1508" roughness="0.9">
+  </a-box>
+  <!-- Buku -->
+  <a-box id="notebook"
+         position="-2.5 0.58 -3.5"
+         width="0.4" height="0.05" depth="0.3"
+         color="#2244aa"
+         emissive="#1133aa"
+         emissive-intensity="0.2"
+         onclick="openPuzzle()"
+         class="clickable">
+  </a-box>
+  <a-text value="📓 Buku Catatan" position="-2.5 1.0 -3.2"
+          align="center" color="#6688ff" width="3" opacity="0.8">
+  </a-text>
+
+  <!-- ── OBJEK 2: KUNCI ── -->
+  <!-- Box dihias -->
+  <a-box position="-2.5 0.58 -5.5" width="0.5" height="0.4" depth="0.4"
+         color="#1a1005" roughness="0.7">
+  </a-box>
+  <!-- Kunci (sphere berkilau) -->
+  <a-sphere id="key"
+            position="-2.5 0.75 -5.5"
+            radius="0.15"
+            color="#ffcc00"
+            emissive="#ffaa00"
+            emissive-intensity="0.5"
+            onclick="ambilKunci()"
+            class="clickable">
+  </a-sphere>
+  <!-- Animasi melayang kunci -->
+  <a-entity position="-2.5 0.75 -5.5">
+    <a-sphere id="key-anim"
+              radius="0.15"
+              color="#ffcc00"
+              emissive="#ffaa00"
+              emissive-intensity="0.5"
+              visible="false">
+      <a-animation attribute="position" to="0 0.2 0" dur="1200"
+                   direction="alternate" repeat="indefinite" easing="easeInOutSine">
+      </a-animation>
+    </a-sphere>
+  </a-entity>
+  <a-text value="🔑 Ambil Kunci" position="-2.5 1.2 -5.2"
+          id="key-label" align="center" color="#ffcc44" width="3" opacity="0.8">
+  </a-text>
+
+  <!-- ── OBJEK 3: PINTU ── -->
+  <!-- Frame pintu -->
+  <a-box position="2 2.5 -6.85" width="1.9" height="5.1" depth="0.1"
+         color="#111116">
+  </a-box>
+  <!-- Daun pintu -->
+  <a-box id="door"
+         position="2 1.5 -6.8"
+         width="1.6" height="3.0" depth="0.15"
+         color="#3a1a0a"
+         roughness="0.8"
+         onclick="bukaPintu()"
+         class="clickable">
+  </a-box>
+  <!-- Detail pintu: panel -->
+  <a-box position="2 1.8 -6.72" width="1.1" height="2.0" depth="0.05"
+         color="#2e1508" id="door-panel">
+  </a-box>
+  <!-- Handle pintu -->
+  <a-sphere id="doorknob" position="2.65 1.5 -6.68" radius="0.07"
+            color="#888" metalness="0.9" roughness="0.2">
+  </a-sphere>
+  <!-- Lampu merah di atas pintu -->
+  <a-sphere id="door-light"
+            position="2 3.2 -6.75" radius="0.08"
+            color="#ff2222" emissive="#ff0000" emissive-intensity="1.0">
+  </a-sphere>
+  <a-text value="🚪 Buka Pintu" position="2 3.6 -6.3"
+          align="center" color="#ff6644" width="3" opacity="0.8">
+  </a-text>
+
+  <!-- ── DEKORASI TAMBAHAN ── -->
+
+  <!-- Poster dinding kiri -->
+  <a-plane position="-5.7 2.5 -4" rotation="0 90 0"
+           width="2.5" height="1.5" color="#0a0a10">
+  </a-plane>
+  <a-text value="FIND THE KEY\nTO FIND THE WAY"
+          position="-5.6 2.5 -4" rotation="0 90 0"
+          align="center" color="#ff3333" width="4"
+          line-height="60" opacity="0.9">
+  </a-text>
+
+  <!-- Rak di dinding kanan -->
+  <a-box position="5.6 2.5 -4.5" width="0.1" height="0.08" depth="1.5"
+         color="#2a1f0f" rotation="0 0 0">
+  </a-box>
+  <!-- Benda di rak -->
+  <a-cylinder position="5.55 2.6 -4.2" radius="0.08" height="0.3"
+              color="#334455" emissive="#223344" emissive-intensity="0.3">
+  </a-cylinder>
+  <a-cylinder position="5.55 2.6 -4.7" radius="0.07" height="0.25"
+              color="#553322" emissive="#331100" emissive-intensity="0.2">
+  </a-cylinder>
+
+  <!-- Peti di sudut -->
+  <a-box position="-5 0.3 -6.5" width="1" height="0.6" depth="0.7"
+         color="#1a1005" roughness="0.9">
+  </a-box>
+  <a-box position="-5 0.64 -6.5" width="1.02" height="0.08" depth="0.72"
+         color="#241a07" roughness="0.8">
+  </a-box>
+
+  <!-- Partikel debu melayang (beberapa sphere kecil) -->
+  <a-sphere position="-1 2 -4" radius="0.02" color="#fff" opacity="0.3">
+    <a-animation attribute="position" from="-1 2 -4" to="-0.5 2.5 -3.5"
+                 dur="4000" direction="alternate" repeat="indefinite" easing="easeInOutSine">
+    </a-animation>
+  </a-sphere>
+  <a-sphere position="1 1.5 -5" radius="0.015" color="#fff" opacity="0.25">
+    <a-animation attribute="position" from="1 1.5 -5" to="1.5 2 -4.5"
+                 dur="5500" direction="alternate" repeat="indefinite" easing="easeInOutSine">
+    </a-animation>
+  </a-sphere>
+
+</a-scene>
+
+<!-- ═══ SCRIPT ═══ -->
+<script>
+  // ── State ──
+  let hasKey = false;
+  let hasCode = false;
+  let gameWon = false;
+  let timerInterval = null;
+  let seconds = 0;
+
+  // ── Timer ──
+  function startTimer() {
+    timerInterval = setInterval(() => {
+      seconds++;
+      const m = String(Math.floor(seconds / 60)).padStart(2, '0');
+      const s = String(seconds % 60).padStart(2, '0');
+      document.getElementById('timer').textContent = m + ':' + s;
+    }, 1000);
+  }
+
+  // ── Toast ──
+  let toastTimeout = null;
+  function showToast(icon, msg, type = 'info') {
+    const t = document.getElementById('toast');
+    t.className = type;
+    document.getElementById('toast-icon').textContent = icon;
+    document.getElementById('toast-msg').textContent = msg;
+    t.classList.add('show');
+    if (toastTimeout) clearTimeout(toastTimeout);
+    toastTimeout = setTimeout(() => t.classList.remove('show'), 2800);
+  }
+
+  // ── Ambil Kunci ──
+  function ambilKunci() {
+    if (hasKey) return;
+    hasKey = true;
+
+    // Sembunyikan objek kunci
+    document.querySelector('#key').setAttribute('visible', 'false');
+    document.querySelector('#key-label').setAttribute('visible', 'false');
+
+    // Isi slot inventori
+    const slot = document.getElementById('slot-key');
+    slot.textContent = '🔑';
+    slot.classList.add('filled');
+
+    showToast('🔑', 'Kunci ditemukan! Sekarang buka pintu.', 'info');
+    updateHint();
+  }
+
+  // ── Puzzle Buku ──
+  function openPuzzle() {
+    if (hasCode) {
+      showToast('📓', 'Sudah kamu selesaikan!', 'success');
+      return;
+    }
+    document.getElementById('puzzle-input').value = '';
+    document.getElementById('puzzle-error').textContent = '';
+    document.getElementById('puzzle-overlay').classList.add('active');
+    setTimeout(() => document.getElementById('puzzle-input').focus(), 200);
+  }
+
+  function closePuzzle() {
+    document.getElementById('puzzle-overlay').classList.remove('active');
+  }
+
+  function checkPuzzle() {
+    const val = document.getElementById('puzzle-input').value.trim();
+    if (val === '16') {
+      hasCode = true;
+      closePuzzle();
+
+      // Isi slot inventori kode
+      const slot = document.getElementById('slot-code');
+      slot.textContent = '📓';
+      slot.classList.add('filled');
+
+      // Ubah buku
+      document.querySelector('#notebook').setAttribute('emissive', '#00ff44');
+      document.querySelector('#notebook').setAttribute('emissive-intensity', '0.5');
+
+      showToast('📓', 'Kode berhasil dipecahkan! +1 Petunjuk', 'success');
+      updateHint();
+    } else {
+      document.getElementById('puzzle-error').textContent = '✗ Jawaban salah. Coba lagi.';
+      document.getElementById('puzzle-input').value = '';
+    }
+  }
+
+  // Enter key di puzzle
+  document.getElementById('puzzle-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') checkPuzzle();
+    if (e.key === 'Escape') closePuzzle();
+  });
+
+  // ── Buka Pintu ──
+  function bukaPintu() {
+    if (gameWon) return;
+
+    if (!hasCode) {
+      showToast('📓', 'Ada petunjuk di buku catatan...', 'warning');
+      return;
+    }
+    if (!hasKey) {
+      showToast('🔒', 'Pintu terkunci! Cari kunci dulu.', 'warning');
+      return;
+    }
+
+    // Menang!
+    gameWon = true;
+    clearInterval(timerInterval);
+
+    // Animasi pintu terbuka
+    document.querySelector('#door').setAttribute('color', '#00cc44');
+    document.querySelector('#door').setAttribute('emissive', '#00aa33');
+    document.querySelector('#door').setAttribute('emissive-intensity', '0.6');
+    document.querySelector('#door-panel').setAttribute('color', '#009933');
+    document.querySelector('#doorknob').setAttribute('color', '#ffdd00');
+    document.querySelector('#door-light').setAttribute('color', '#00ff44');
+    document.querySelector('#door-light').setAttribute('emissive', '#00ff44');
+
+    const m = String(Math.floor(seconds / 60)).padStart(2, '0');
+    const s = String(seconds % 60).padStart(2, '0');
+    document.getElementById('final-time').textContent = m + ':' + s;
+
+    setTimeout(() => {
+      document.getElementById('win-screen').classList.add('active');
+    }, 800);
+  }
+
+  // ── Hint update ──
+  function updateHint() {
+    const hint = document.getElementById('hint');
+    if (!hasCode && !hasKey) {
+      hint.textContent = '[ klik objek untuk berinteraksi ]';
+    } else if (!hasCode) {
+      hint.textContent = '[ baca buku catatan untuk petunjuk ]';
+    } else if (!hasKey) {
+      hint.textContent = '[ kunci ada di suatu tempat... ]';
+    } else {
+      hint.textContent = '[ gunakan kunci untuk membuka pintu ]';
+    }
+  }
+
+  // ── Restart ──
+  function restartGame() {
+    location.reload();
+  }
+
+  // ── Init ──
+  window.addEventListener('load', () => {
+    startTimer();
+    updateHint();
+
+    // Pastikan kursor A-Frame berfungsi di desktop
+    const scene = document.querySelector('a-scene');
+    scene.addEventListener('loaded', () => {
+      // Aktifkan click untuk elemen clickable via raycaster
+      document.querySelectorAll('.clickable').forEach(el => {
+        el.setAttribute('raycaster', '');
+      });
+    });
+  });
+</script>
+</body>
+</html>
