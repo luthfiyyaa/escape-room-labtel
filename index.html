@@ -384,7 +384,7 @@
 </div>
 
 <!-- ═══ A-FRAME SCENE ═══ -->
-<a-scene fog="type: linear; color: #0a0a0a; near: 8; far: 18">
+<a-scene fog="type: linear; color: #1a1a2e; near: 12; far: 22">
 
   <!-- Aset -->
   <a-assets>
@@ -400,22 +400,23 @@
   </a-entity>
 
   <!-- Langit gelap -->
-  <a-sky color="#080810"></a-sky>
+  <a-sky color="#1a1a2e"></a-sky>
 
-  <!-- Ambient redup + lampu utama -->
-  <a-light type="ambient" color="#101018" intensity="0.8"></a-light>
-  <a-light type="point" position="0 3.5 -2" color="#4488ff" intensity="1.2" distance="12" decay="2"></a-light>
+  <!-- Ambient terang -->
+  <a-light type="ambient" color="#ccddff" intensity="1.6"></a-light>
+  <a-light type="point" position="0 3.5 -2" color="#ffffff" intensity="2.0" distance="16" decay="1.5"></a-light>
+  <a-light type="point" position="0 3.5 -6" color="#ffffff" intensity="1.5" distance="14" decay="1.5"></a-light>
 
-  <!-- Lampu merah di dekat pintu -->
-  <a-light type="point" position="2 2.5 -4.5" color="#ff2222" intensity="0.8" distance="6" decay="2"></a-light>
+  <!-- Lampu oranye di dekat pintu -->
+  <a-light type="point" position="2 2.5 -4.5" color="#ffaa55" intensity="1.5" distance="8" decay="1.5"></a-light>
 
   <!-- Lampu kuning di dekat kunci -->
-  <a-light type="point" position="-2 2 -4.5" color="#ffcc44" intensity="0.5" distance="5" decay="2"></a-light>
+  <a-light type="point" position="-2 2 -4.5" color="#ffee88" intensity="1.5" distance="8" decay="1.5"></a-light>
 
   <!-- ── LANTAI ── -->
   <a-plane position="0 0 -3" rotation="-90 0 0"
            width="12" height="12"
-           color="#141418"
+           color="#3a3a4a"
            roughness="0.6" metalness="0.3"
            repeat="6 6">
   </a-plane>
@@ -430,17 +431,13 @@
 
   <!-- ── DINDING BELAKANG ── -->
   <a-box position="0 2.5 -7" width="12" height="5" depth="0.3"
-         color="#161620" roughness="0.9">
+         color="#2e2e3e" roughness="0.9">
   </a-box>
-
-  <!-- Dinding kiri -->
   <a-box position="-6 2.5 -3" width="0.3" height="5" depth="12"
-         color="#131318" roughness="0.9">
+         color="#2a2a38" roughness="0.9">
   </a-box>
-
-  <!-- Dinding kanan -->
   <a-box position="6 2.5 -3" width="0.3" height="5" depth="12"
-         color="#131318" roughness="0.9">
+         color="#2a2a38" roughness="0.9">
   </a-box>
 
   <!-- Langit-langit -->
